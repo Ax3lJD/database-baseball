@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>Hi, {{ user.username }}!</h1>
+    <p>{{ db_status }}</p>
+    {% for post in posts %}
+    <div><p>{{ post.author.username }} says: <b>{{ post.body }}</b></p></div>
+    {% endfor %}
+    <h2>Sample People from Database</h2>
+    <ul>
+        {% for person in sample_people %}
+        <li>{{ person['playerID'] }}: {{ person['nameFirst'] }} {{ person['nameLast'] }}</li>
+        {% endfor %}
+    </ul>
+
+{% endblock %}
