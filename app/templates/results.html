@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <div class="container py-4">
+        <!-- Display latest finished round -->
+        <h3>Last Finished Round</h3>
+        <table class="table table-bordered">
+            <tr>
+                <th>Round</th>
+                <th>Score</th>
+                <th>Total Attempted</th>
+                <th>Correct Answers</th>
+                <th>Percentage</th>
+            </tr>
+            <tr>
+                <td>{{ latest_score.round_number }}</td>
+                <td>{{ latest_score.score }}</td>
+                <td>{{ latest_score.total_attempted }}</td>
+                <td>{{ latest_score.correct_answers }}</td>
+                <td>{{ latest_score.percentage }}%</td>
+            </tr>
+        </table>
+
+        <!-- Display top 10 rounds -->
+        <h3>Top 10 Rounds</h3>
+        <table class="table table-bordered">
+            <tr>
+                <th>Round</th>
+                <th>Score</th>
+                <th>Total Attempted</th>
+                <th>Correct Answers</th>
+                <th>Percentage</th>
+            </tr>
+            {% for r in rounds %}
+            <tr>
+                <td>{{ r.round_number }}</td>
+                <td>{{ r.score }}</td>
+                <td>{{ r.total_attempted }}</td>
+                <td>{{ r.correct_answers }}</td>
+                <td>{{ r.percentage }}%</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+{% endblock %}

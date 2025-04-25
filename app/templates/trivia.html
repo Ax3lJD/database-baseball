@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <div class="container py-4">
+        <!-- Display question number -->
+        <p class="text-end text-muted">Question {{ question_number }} of 10</p>
+
+        <h1 class="display-4 text-center mb-4">{{ question }}</h1>
+
+        <form method="post">
+            {% for letter, text in options.items() %}
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="answer" value="{{ letter }}" required>
+                    <label class="form-check-label" for="{{ letter }}">
+                        {{ letter }}) {{ text }}
+                    </label>
+                </div>
+            {% endfor %}
+            
+            <div class="d-flex justify-content-center mt-3">
+                <button type="submit" class="btn btn-primary">Submit</button>
+            </div>
+        </form>
+    </div>
+{% endblock %}

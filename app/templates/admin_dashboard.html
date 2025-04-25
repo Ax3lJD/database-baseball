@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Admin Dashboard</h2>
+
+<!-- User Table -->
+<table id="user-table">
+    <thead>
+        <tr>
+            <th>Username</th>
+            <th>Admin</th>
+            <th>Banned</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for user in users %}
+        <tr>
+            <td>{{ user.username }}</td>
+            <td>{{ 'Yes' if user.is_admin else 'No' }}</td>
+            <td>{{ 'Yes' if user.is_banned else 'No' }}</td>
+            <td>
+                <!-- Ban/Unban Form -->
+                <form action="{{ url_for('toggle_ban', user_id=user.id) }}" method="post" style="display:inline;">
+                    <button type="submit" class="btn {{ 'btn-danger' if user.is_banned else 'btn-success' }}">
+                        {{ 'Unban' if user.is_banned else 'Ban' }}
+                    </button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<script>
+    // Filter users based on search and admin status
+    function filterUsers() {
+        const search = document.getElementById('search').value.toLowerCase();
+        const filterAdmin = document.getElementById('filter-admin').value;
+        const rows = document.querySelectorAll('#user-table tbody tr');
+
+        rows.forEach(row => {
+            const username = row.cells[0].textContent.toLowerCase();
+            const isAdmin = row.cells[1].textContent.trim().toLowerCase() === 'yes';
+            const matchesSearch = username.includes(search);
+            const matchesAdminFilter = filterAdmin ? (filterAdmin == 1 ? isAdmin : !isAdmin) : true;
+
+            if (matchesSearch && matchesAdminFilter) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    }
+</script>
+{% endblock %}
