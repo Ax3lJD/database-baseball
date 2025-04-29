@@ -106,14 +106,16 @@ def trivia():
             session.setdefault('question_count', 0)
             session.setdefault('score', 0)
             session.setdefault('correct_answers', 0)
+            session.setdefault('asked_question_ids', [])
 
-            latest_score = session_db.query(TriviaScore).filter_by(user_id=current_user.id).order_by(TriviaScore.round_number.desc()).first()
-            session['round_number'] = (latest_score.round_number + 1) if latest_score else 1
+            latest_score = session_db.query(TriviaScore).filter_by(user_id=current_user.id).order_by(
+                TriviaScore.round_number.desc()).first()
+            current_round_number = (latest_score.round_number + 1) if latest_score else 1
+            session['round_number'] = current_round_number
 
             if session['question_count'] >= 10:
                 correct_answers = session['correct_answers']
                 score = session['score']
-                round_number = session['round_number']
 
                 new_score = TriviaScore(
                     user_id=current_user.id,
@@ -121,7 +123,7 @@ def trivia():
                     total_attempted=10,
                     correct_answers=correct_answers,
                     percentage=round((correct_answers / 10) * 100, 2),
-                    round_number=round_number
+                    round_number=session['round_number']
                 )
                 session_db.add(new_score)
                 session_db.commit()
@@ -130,39 +132,51 @@ def trivia():
                 session['score'] = 0
                 session['correct_answers'] = 0
                 session['round_number'] += 1
+                session['asked_question_ids'] = []
 
                 return redirect(url_for('trivia_results'))
 
-            generator = random.choice([generate_player_stat_question, generate_team_performance_question])
-            question_data = generator(session_db)
+            if request.method == 'GET' or 'question_data' not in session:  # Generate question on GET or if not in session
+                question_data = None
+                for _ in range(5):
+                    generator = random.choice([generate_player_stat_question, generate_team_performance_question])
+                    question_data = generator(session_db, session.get('asked_question_ids', []))
+                    if question_data:
+                        break
 
-            if not question_data:
-                flash("Not enough data to generate a trivia question. Try again.")
-                return redirect(url_for('trivia'))
+                if not question_data:
+                    flash("Sorry, we couldn't generate a trivia question right now. Please try again later.")
+                    return redirect(url_for('trivia'))
+
+                session['question_data'] = question_data  # Store in session
 
             if request.method == 'POST':
                 user_answer = request.form.get('answer')
+
+                # Get question data from session
+                question_data = session.pop('question_data')  # Remove from session after use
+
                 if user_answer == question_data['correct_letter']:
                     flash("Correct! 🎉")
                     session['score'] += 1
                     session['correct_answers'] += 1
                 else:
-                    correct_answer_text = question_data['options'].get(question_data['correct_letter'])
+                    correct_answer_text = question_data['correct_answer']
                     flash(f"Wrong. The correct answer was {question_data['correct_letter']}) {correct_answer_text}")
+
                 session['question_count'] += 1
+                session['asked_question_ids'].append(question_data['question_id'])
                 return redirect(url_for('trivia'))
 
             return render_template(
                 'trivia.html',
-                question=question_data['question'],
-                options=question_data['options'],
+                question=session['question_data']['question'],  # Get question from session
+                options=session['question_data']['options'],  # Get options from session
                 question_number=session['question_count'] + 1
             )
 
     except Exception as e:
-        print("An error occurred:")
-        traceback.print_exc()
-        flash(f"An error occurred: {str(e)}")
+        flash("An unexpected error occurred. Please try again.")
         return redirect(url_for('index'))
 
 @app.route('/trivia/results')
