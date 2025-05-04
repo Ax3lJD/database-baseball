@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-4">
+    <h1 class="text-center mb-4">Baseball Wordle</h1>
+
+    <!-- Difficulty Selection -->
+    <div class="text-center mb-4">
+        <form method="post" class="d-inline-block">
+            <div class="btn-group" role="group">
+                <button type="submit" name="difficulty" value="easy"
+                        class="btn btn-outline-success {% if current_difficulty == 'easy' %}active{% endif %}">
+                    Easy
+                </button>
+                <button type="submit" name="difficulty" value="medium"
+                        class="btn btn-outline-warning {% if current_difficulty == 'medium' %}active{% endif %}">
+                    Medium
+                </button>
+                <button type="submit" name="difficulty" value="hard"
+                        class="btn btn-outline-danger {% if current_difficulty == 'hard' %}active{% endif %}">
+                    Hard
+                </button>
+                <button type="submit" name="difficulty" value="random"
+                        class="btn btn-outline-info {% if current_difficulty == 'random' %}active{% endif %}">
+                    Random
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <p class="text-center">Guess the 5-letter baseball player's last name!</p>
+
+    <!-- Show hint if available -->
+    {% if hint %}
+        <div class="alert alert-info text-center mb-3">
+            <strong>Hint:</strong> {{ hint }}
+        </div>
+    {% endif %}
+
+    <!-- Wordle Grid -->
+    <div class="wordle-grid">
+        {% for i in range(max_attempts) %}
+            <div class="word-row">
+                {% for j in range(5) %}
+                    {% if i < state.guesses|length %}
+                        {% set letter = state.guesses[i][j] %}
+                        {% set feedback = state.feedback[i][j] %}
+                        <div class="letter-box {{ feedback }}">{{ letter }}</div>
+                    {% else %}
+                        <div class="letter-box empty"></div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        {% endfor %}
+    </div>
+
+    <!-- Input Form -->
+    {% if not state.solved and state.attempts < max_attempts %}
+    <form method="post" class="mt-4">
+        <div class="input-group mb-3">
+            <input type="text" name="guess" class="form-control text-uppercase"
+                   maxlength="5" pattern="[A-Za-z]{5}" required
+                   placeholder="Enter 5-letter guess" autocomplete="off">
+            <button class="btn btn-primary" type="submit">Guess</button>
+        </div>
+    </form>
+    {% endif %}
+
+    <!-- Game Over Options -->
+    {% if state.solved or state.attempts >= max_attempts %}
+    <div class="text-center mt-4">
+        <a href="{{ url_for('baseball_wordle') }}" class="btn btn-primary me-2">Play Again</a>
+        <a href="{{ url_for('wordle_stats') }}" class="btn btn-info me-2">View Stats</a>
+        <a href="{{ url_for('index') }}" class="btn btn-secondary">Back to Games</a>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.wordle-grid {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    margin: 20px 0;
+}
+
+.word-row {
+    display: flex;
+    gap: 5px;
+}
+
+.letter-box {
+    width: 50px;
+    height: 50px;
+    border: 2px solid #dee2e6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.letter-box.correct {
+    background-color: #198754;
+    color: white;
+    border-color: #198754;
+}
+
+.letter-box.present {
+    background-color: #ffc107;
+    color: white;
+    border-color: #ffc107;
+}
+
+.letter-box.absent {
+    background-color: #6c757d;
+    color: white;
+    border-color: #6c757d;
+}
+
+.letter-box.empty {
+    background-color: #fff;
+}
+
+.btn-group .btn {
+    min-width: 80px;
+}
+</style>
+{% endblock %}
