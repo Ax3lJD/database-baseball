@@ -1,5 +1,6 @@
 from sqlalchemy import text
 import random
+import logging
 
 def generate_player_stat_question(session_db, asked_question_ids):
     year = random.choice(range(1980, 2020))

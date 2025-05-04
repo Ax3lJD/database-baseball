@@ -203,3 +203,94 @@ class BaseballStrands:
                 if grid[i][j] == '':
                     grid[i][j] = random.choice(letters)
 
+    def get_hint(self, puzzle, found_words, hint_level=1):
+        """Generate hints based on difficulty level"""
+        remaining_words = [word for word in puzzle['words'] if word not in found_words]
+
+        if not remaining_words:
+            return None
+
+        # Choose a word to hint about
+        hint_word = random.choice(remaining_words)
+
+        # Find the word's position in the grid
+        word_position = None
+        for placed_word in puzzle['placed_words']:
+            if placed_word['word'] == hint_word:
+                word_position = placed_word
+                break
+
+        if hint_level == 1:
+            # Basic hint: word length and first letter
+            return {
+                'type': 'basic',
+                'message': f"Look for a {len(hint_word)}-letter word starting with '{hint_word[0]}'"
+            }
+
+        elif hint_level == 2:
+            # Medium hint: first two letters and general direction
+            if word_position:
+                direction = self._get_direction_description(word_position['direction'])
+                return {
+                    'type': 'medium',
+                    'message': f"Look for '{hint_word[:2]}...' going {direction}"
+                }
+            else:
+                return {
+                    'type': 'medium',
+                    'message': f"Look for a word starting with '{hint_word[:2]}'"
+                }
+
+        elif hint_level == 3:
+            # Advanced hint: highlight starting area
+            if word_position:
+                row, col = word_position['start']
+                return {
+                    'type': 'advanced',
+                    'message': f"Check around row {row + 1}, column {col + 1} for '{hint_word[:3]}...'"
+                }
+            else:
+                return {
+                    'type': 'advanced',
+                    'message': f"Look for '{hint_word[:3]}...' (starts with these letters)"
+                }
+
+        elif hint_level >= 4:
+            # Ultimate hint: show the full word
+            return {
+                'type': 'reveal',
+                'message': f"Find the word: {hint_word}",
+                'word': hint_word
+            }
+
+    def _get_direction_description(self, direction):
+        """Convert direction tuple to human-readable description"""
+        if direction == (0, 1):
+            return "horizontally (left to right)"
+        elif direction == (1, 0):
+            return "vertically (top to bottom)"
+        elif direction == (1, 1):
+            return "diagonally (down-right)"
+        elif direction == (-1, 1):
+            return "diagonally (up-right)"
+        else:
+            return "in an unknown direction"
+
+    def highlight_hint_cells(self, puzzle, hint_word):
+        """Get cells to highlight for a specific word"""
+        highlighted_cells = []
+
+        for placed_word in puzzle['placed_words']:
+            if placed_word['word'] == hint_word:
+                start_row, start_col = placed_word['start']
+                direction = placed_word['direction']
+
+                # Highlight the first 3 letters
+                for i in range(min(3, len(hint_word))):
+                    row = start_row + i * direction[0]
+                    col = start_col + i * direction[1]
+                    highlighted_cells.append((row, col))
+
+                break
+
+        return highlighted_cells

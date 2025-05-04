@@ -32,11 +32,17 @@
                             <ul class="dropdown-menu">
                                 <li><a class="dropdown-item" href="{{ url_for('trivia') }}">Baseball Trivia</a></li>
                                 <li><a class="dropdown-item" href="{{ url_for('baseball_wordle') }}">Baseball Wordle</a></li>
+                                <li><a class="dropdown-item" href="{{ url_for('baseball_connections') }}">Baseball Connections</a></li>
+                               <li><a class="dropdown-item" href="{{ url_for('baseball_strands') }}">Baseball Strands</a></li>
+                                <li><a class="dropdown-item" href="{{ url_for('baseball_crossword') }}">Baseball Crossword</a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" href="{{ url_for('trivia_results') }}">Trivia Stats</a></li>
                                 <li><a class="dropdown-item" href="{{ url_for('wordle_stats') }}">Wordle Stats</a></li>
                                 <li><a class="dropdown-item" href="{{ url_for('connections_stats') }}">Connections Stats</a></li>
                                 <li><a class="dropdown-item" href="{{ url_for('strands_stats') }}">Strands Stats</a></li>
+                                <li><a class="dropdown-item" href="{{ url_for('crossword_stats') }}">My Crossword Stats</a></li>
+                                <li><a class="dropdown-item" href="{{ url_for('crossword_leaderboard') }}">Crossword Leaderboard</a></li>
+
                             </ul>
                         </div>
                         <a class="btn btn-outline-danger" href="{{ url_for('logout') }}">Logout</a>
