@@ -584,20 +584,20 @@ def baseball_strands():
                         state['game_over'] = True
                         time_taken = int(time.time() - state['start_time'])
 
-                        # Save score
+                        # Save score - FIXED: added with statement and fixed indentation
                         with Session() as session_db:
-                            score = ConnectionsScore(
+                            score = StrandsScore(
                                 user_id=current_user.id,
-                                solved=False,  # Failed game
-                                mistakes=state['mistakes'],
+                                solved=True,  # Successfully found all words
+                                words_found=len(state['found_words']),
                                 time_taken=time_taken,
-                                game_state=json.dumps(state)
+                                game_state=json.dumps(state),
+                                puzzle_date=datetime.utcnow()
                             )
                             session_db.add(score)
                             session_db.commit()
 
-                        flash("Game over! You've made too many mistakes.")
-
+                        # REMOVED contradictory error message
                         flash(f"Congratulations! You found all words in {time_taken} seconds!")
 
                 state['selected_cells'] = []
@@ -605,78 +605,27 @@ def baseball_strands():
         elif action == 'clear_selection':
             state['selected_cells'] = []
 
-
         elif action == 'get_hint':
+            if not state['game_over'] and len(state['found_words']) < len(state['puzzle']['words']):
+                state['hint_level'] += 1
+                state['hints_used'] += 1
 
-            state['hints_used'] += 1
+                hint = strands.get_hint(
+                    state['puzzle'],
+                    state['found_words'],
+                    state['hint_level']
+                )
 
-            with Session() as session_db:
+                state['current_hint'] = hint
 
-                hint = crossword.get_hint(session_db, state['puzzle'], state['user_grid'], state['hints_used'])
-
-                print(f"DEBUG: Generated hint: {hint}")  # Add debugging
-
-                print(f"DEBUG: Hint level: {state['hints_used']}")
-
-                if hint:
-
-                    state['current_hint'] = hint
-
-                    print(f"DEBUG: Stored hint in state: {state['current_hint']}")
-
-                    # Record hint usage
-
-                    hint_record = CrosswordHint(
-
-                        score_id=state['score_id'],
-
-                        hint_type=hint['type'],
-
-                        hint_level=state['hints_used'],
-
-                        hint_content=json.dumps(hint)
-
+                # For advanced hints, highlight cells
+                if hint and hint['type'] == 'reveal' and 'word' in hint:
+                    state['highlighted_cells'] = strands.highlight_hint_cells(
+                        state['puzzle'],
+                        hint['word']
                     )
-
-                    session_db.add(hint_record)
-
-                    # Update score
-
-                    score = session_db.query(CrosswordScore).get(state['score_id'])
-
-                    score.hints_used = state['hints_used']
-
-                    session_db.commit()
-
-                    # Apply hint if it's a reveal type
-
-                    if hint['type'] == 'reveal_letter':
-
-                        state['user_grid'][hint['row']][hint['col']] = hint['letter']
-
-                    elif hint['type'] == 'reveal_word':
-
-                        if hint['direction'] == 'across':
-
-                            for i, letter in enumerate(hint['word']):
-                                state['user_grid'][hint['row']][hint['col'] + i] = letter
-
-                        else:  # down
-
-                            for i, letter in enumerate(hint['word']):
-                                state['user_grid'][hint['row'] + i][hint['col']] = letter
-
-                        flash(f"Revealed {hint['direction']} {hint['number']}!")
-
                 else:
-
-                    print(f"DEBUG: No hint generated for level {state['hints_used']}")
-
-            # Make sure to save the state
-
-            session['crossword_state'] = state
-
-            session.modified = True  # Force Flask to update session
+                    state['highlighted_cells'] = []
 
         session['strands_state'] = state
 
