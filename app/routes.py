@@ -5,7 +5,9 @@ from app.forms import LoginForm, RegisterForm
 from werkzeug.security import check_password_hash, generate_password_hash
 import random
 from flask_login import login_user, logout_user, current_user, login_required
-from app.trivia_questions import generate_player_stat_question, generate_team_performance_question
+from app.trivia_questions import generate_player_stat_question, generate_team_performance_question, \
+    generate_pitcher_stat_question, generate_team_stat_question, generate_hof_question, generate_allstar_question, \
+    generate_worldseries_question
 from app.baseball_wordle import BaseballWordle
 from datetime import datetime, date
 import json
@@ -26,6 +28,7 @@ from app.models import (
 )
 from flask_login import login_required, current_user
 from app import app, Session
+import logging
 
 
 @app.route('/')
@@ -166,48 +169,94 @@ def register():
         return redirect(url_for('login'))
     return render_template('register.html', title='Register', form=form)
 
+
 @app.route('/trivia', methods=['GET', 'POST'])
+@login_required
 def trivia():
     try:
         with Session() as session_db:
-            session.setdefault('question_count', 0)
-            session.setdefault('score', 0)
-            session.setdefault('correct_answers', 0)
-            session.setdefault('asked_question_ids', [])
+            # Initialize session variables if new game is starting
+            if 'question_count' not in session or session.get('question_count', 0) == 0:
+                # Get latest round number from database
+                latest_score = session_db.query(TriviaScore).filter_by(user_id=current_user.id).order_by(
+                    TriviaScore.round_number.desc()).first()
 
-            latest_score = session_db.query(TriviaScore).filter_by(user_id=current_user.id).order_by(
-                TriviaScore.round_number.desc()).first()
-            current_round_number = (latest_score.round_number + 1) if latest_score else 1
-            session['round_number'] = current_round_number
+                # Get the next round number
+                next_round = 1
+                if latest_score:
+                    next_round = latest_score.round_number + 1
 
+                logging.info(f"Starting new trivia round {next_round} for user {current_user.id}")
+
+                # Set initial session state
+                session['question_count'] = 0
+                session['score'] = 0
+                session['correct_answers'] = 0
+                session['asked_question_ids'] = []
+                session['round_number'] = next_round
+                session.setdefault('difficulty', 'medium')  # Default difficulty
+
+            # Handle difficulty selection form submission
+            if request.method == 'POST' and 'set_difficulty' in request.form:
+                new_difficulty = request.form.get('difficulty')
+                if new_difficulty in ['easy', 'medium', 'hard']:
+                    session['difficulty'] = new_difficulty
+                    flash(f"Difficulty set to {new_difficulty.capitalize()}")
+                return redirect(url_for('trivia'))
+
+            # Check if a round is complete
             if session['question_count'] >= 10:
                 correct_answers = session['correct_answers']
                 score = session['score']
+                round_number = session['round_number']
 
+                logging.info(f"Completing trivia round {round_number} for user {current_user.id} with score {score}")
+
+                # Save the score to database
                 new_score = TriviaScore(
                     user_id=current_user.id,
                     score=score,
                     total_attempted=10,
                     correct_answers=correct_answers,
                     percentage=round((correct_answers / 10) * 100, 2),
-                    round_number=session['round_number']
+                    round_number=round_number
                 )
                 session_db.add(new_score)
                 session_db.commit()
 
-                session['question_count'] = 0
-                session['score'] = 0
-                session['correct_answers'] = 0
-                session['round_number'] += 1
-                session['asked_question_ids'] = []
+                # Clear all session data to force a complete reset
+                for key in list(session.keys()):
+                    if key in ['question_count', 'score', 'correct_answers', 'asked_question_ids', 'round_number']:
+                        session.pop(key)
 
+                # We keep the difficulty setting
+                flash(f"Round {round_number} complete! Final score: {score}/10")
                 return redirect(url_for('trivia_results'))
 
-            if request.method == 'GET' or 'question_data' not in session:  # Generate question on GET or if not in session
+            # Generate a new question if needed
+            if request.method == 'GET' or 'question_data' not in session:
                 question_data = None
+                difficulty = session.get('difficulty', 'medium')
+
+                # Define available generators
+                generators = [
+                    generate_player_stat_question,
+                    generate_pitcher_stat_question,
+                    generate_team_performance_question,
+                    generate_team_stat_question,
+                    generate_hof_question,
+                    generate_allstar_question,
+                    generate_worldseries_question
+                ]
+
+                # Try up to 5 times to generate a valid question
                 for _ in range(5):
-                    generator = random.choice([generate_player_stat_question, generate_team_performance_question])
-                    question_data = generator(session_db, session.get('asked_question_ids', []))
+                    generator = random.choice(generators)
+                    question_data = generator(
+                        session_db,
+                        session.get('asked_question_ids', []),
+                        difficulty
+                    )
                     if question_data:
                         break
 
@@ -215,13 +264,12 @@ def trivia():
                     flash("Sorry, we couldn't generate a trivia question right now. Please try again later.")
                     return redirect(url_for('trivia'))
 
-                session['question_data'] = question_data  # Store in session
+                session['question_data'] = question_data
 
-            if request.method == 'POST':
+            # Handle answer submission
+            if request.method == 'POST' and 'answer' in request.form:
                 user_answer = request.form.get('answer')
-
-                # Get question data from session
-                question_data = session.pop('question_data')  # Remove from session after use
+                question_data = session.pop('question_data')
 
                 if user_answer == question_data['correct_letter']:
                     flash("Correct! 🎉")
@@ -232,21 +280,38 @@ def trivia():
                     flash(f"Wrong. The correct answer was {question_data['correct_letter']}) {correct_answer_text}")
 
                 session['question_count'] += 1
-                session['asked_question_ids'].append(question_data['question_id'])
+                if 'question_id' in question_data:
+                    session['asked_question_ids'].append(question_data['question_id'])
+
+                # Force session to update
+                session.modified = True
+
                 return redirect(url_for('trivia'))
 
+            # Render the template with the current question
             return render_template(
                 'trivia.html',
-                question=session['question_data']['question'],  # Get question from session
-                options=session['question_data']['options'],  # Get options from session
-                question_number=session['question_count'] + 1
+                question=session['question_data']['question'],
+                options=session['question_data']['options'],
+                question_number=session['question_count'] + 1,
+                difficulty=session.get('difficulty', 'medium')
             )
 
     except Exception as e:
+        logging.error(f"Error in trivia route: {e}", exc_info=True)
         flash("An unexpected error occurred. Please try again.")
         return redirect(url_for('index'))
 
 
+@app.route('/clear_trivia_session')
+@login_required
+def clear_trivia_session():
+    for key in list(session.keys()):
+        if key in ['question_count', 'score', 'correct_answers', 'asked_question_ids', 'round_number', 'question_data']:
+            session.pop(key)
+
+    flash("Trivia game has been reset.")
+    return redirect(url_for('trivia'))
 @app.route('/trivia/results')
 def trivia_results():
     with Session() as session_db:
@@ -837,16 +902,6 @@ def strands_stats():
 
     return render_template('strands_stats.html', stats=stats, recent_games=recent_games)
 
-
-from flask import render_template, request, session, flash
-from flask_login import login_required, current_user
-from sqlalchemy import func
-from app import app, Session
-from datetime import datetime
-import time, json
-from app.baseball_crossword import BaseballCrossword
-from app.models import CrosswordPuzzle, CrosswordWordUsage, CrosswordScore, CrosswordHint
-
 from flask import render_template, request, session, flash
 from flask_login import login_required, current_user
 from sqlalchemy import func
@@ -1260,3 +1315,4 @@ def crossword_leaderboard():
         leaderboard=leaderboard,
         user_rank=user_rank
     )
+
