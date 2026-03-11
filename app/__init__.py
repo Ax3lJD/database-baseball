@@ -14,6 +14,10 @@ engine = create_engine(app.config['SQLALCHEMY_DATABASE_URI'])
 Session = sessionmaker(bind=engine)
 
 from app import models
+
+# Drop and recreate tables to fix column naming from prior failed deploy.
+# Safe to remove this drop_all line after first successful deploy.
+Base.metadata.drop_all(engine)
 Base.metadata.create_all(engine)
 
 # Auto-seed baseball data on first run

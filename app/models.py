@@ -33,26 +33,26 @@ class TriviaScore(Base):
 class People(Base):
     __tablename__ = 'people'
 
-    playerID = Column(String(20), primary_key=True)
-    nameFirst = Column(String(50))
-    nameLast = Column(String(50))
+    playerID = Column('playerid', String(20), primary_key=True)
+    nameFirst = Column('namefirst', String(50))
+    nameLast = Column('namelast', String(50))
 
 
 class Batting(Base):
     __tablename__ = 'batting'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    playerID = Column(String(20))
-    yearID = Column(Integer)
-    b_HR = Column(Integer)
-    b_AB = Column(Integer)
-    b_RBI = Column(Integer)
+    playerID = Column('playerid', String(20))
+    yearID = Column('yearid', Integer)
+    b_HR = Column('b_hr', Integer)
+    b_AB = Column('b_ab', Integer)
+    b_RBI = Column('b_rbi', Integer)
 
 
 class Teams(Base):
     __tablename__ = 'teams'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    team_name = Column(String(100))
-    yearID = Column(Integer)
-    team_W = Column(Integer)
+    team_name = Column('team_name', String(100))
+    yearID = Column('yearid', Integer)
+    team_W = Column('team_w', Integer)
