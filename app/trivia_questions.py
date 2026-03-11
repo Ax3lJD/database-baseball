@@ -103,13 +103,13 @@ def generate_player_stat_question(session_db, asked_question_ids, difficulty='me
     else:  # hard
         year = random.choice(range(1980, 2020))
 
-    # Stat selection based on difficulty
+    # Stat selection — limited to columns that exist in our schema
     if difficulty == 'easy':
-        common_stats = ['b_HR', 'b_RBI', 'b_H']
+        common_stats = ['b_HR', 'b_RBI']
     elif difficulty == 'medium':
-        common_stats = ['b_HR', 'b_RBI', 'b_H', 'b_R', 'b_SB']
+        common_stats = ['b_HR', 'b_RBI', 'b_AB']
     else:  # hard
-        common_stats = ['b_HR', 'b_RBI', 'b_H', 'b_R', 'b_SB', 'b_BB', 'b_2B', 'b_3B', 'b_IBB']
+        common_stats = ['b_HR', 'b_RBI', 'b_AB']
 
     stat_type = random.choice(common_stats)
     stat_name = batting_stat_mapping[stat_type]
@@ -342,13 +342,8 @@ def generate_team_stat_question(session_db, asked_question_ids, difficulty='medi
     else:  # hard
         year = random.choice(range(1980, 2020))
 
-    # Stat selection based on difficulty
-    if difficulty == 'easy':
-        common_stats = ['team_R', 'team_HR', 'team_H']
-    elif difficulty == 'medium':
-        common_stats = ['team_R', 'team_HR', 'team_H', 'team_SB', 'team_ERA']
-    else:  # hard
-        common_stats = ['team_R', 'team_HR', 'team_H', 'team_SB', 'team_ERA', 'team_SV', 'team_SHO', 'team_SO']
+    # Stat selection — limited to columns that exist in our schema
+    common_stats = ['team_W']
 
     stat_type = random.choice(common_stats)
 

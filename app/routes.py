@@ -241,12 +241,8 @@ def trivia():
                 # Define available generators
                 generators = [
                     generate_player_stat_question,
-                    generate_pitcher_stat_question,
                     generate_team_performance_question,
                     generate_team_stat_question,
-                    generate_hof_question,
-                    generate_allstar_question,
-                    generate_worldseries_question
                 ]
 
                 # Try up to 5 times to generate a valid question
@@ -1130,123 +1126,100 @@ def baseball_crossword():
 @login_required
 def crossword_stats():
     with Session() as session_db:
-        # Complex query using CTEs and window functions
-        stats_query = text("""
-        WITH UserStats AS (
-            SELECT 
-                u.id as user_id,
+        try:
+            # Basic user stats
+            stats_query = text("""
+            SELECT
                 COUNT(cs.id) as games_played,
-                COUNT(CASE WHEN cs.solved = 1 THEN 1 END) as games_won,
-                AVG(CASE WHEN cs.solved = 1 THEN cs.time_taken END) as avg_solve_time,
-                MIN(CASE WHEN cs.solved = 1 THEN cs.time_taken END) as best_time,
+                COUNT(CASE WHEN cs.solved = true THEN 1 END) as games_won,
+                AVG(CASE WHEN cs.solved = true THEN cs.time_taken END) as avg_solve_time,
+                MIN(CASE WHEN cs.solved = true THEN cs.time_taken END) as best_time,
                 AVG(cs.hints_used) as avg_hints,
                 AVG(cs.completion_percentage) as avg_completion,
-                COUNT(CASE WHEN cs.hints_used = 0 AND cs.solved = 1 THEN 1 END) as perfect_games
-            FROM users u
-            LEFT JOIN crossword_scores cs ON u.id = cs.user_id
-            WHERE u.id = :user_id
-            GROUP BY u.id
-        ),
-        DifficultyStats AS (
-            SELECT 
-                cp.difficulty,
-                COUNT(cs.id) as games_played,
-                COUNT(CASE WHEN cs.solved = 1 THEN 1 END) as games_won,
-                AVG(CASE WHEN cs.solved = 1 THEN cs.time_taken END) as avg_time
+                COUNT(CASE WHEN cs.hints_used = 0 AND cs.solved = true THEN 1 END) as perfect_games
+            FROM crossword_scores cs
+            WHERE cs.user_id = :user_id
+            """)
+            result = session_db.execute(stats_query, {"user_id": current_user.id}).fetchone()
+
+            # Difficulty breakdown
+            diff_query = text("""
+            SELECT cp.difficulty,
+                   COUNT(cs.id) as games_played,
+                   COUNT(CASE WHEN cs.solved = true THEN 1 END) as games_won,
+                   AVG(CASE WHEN cs.solved = true THEN cs.time_taken END) as avg_time
             FROM crossword_puzzles cp
             JOIN crossword_scores cs ON cp.id = cs.puzzle_id
             WHERE cs.user_id = :user_id
             GROUP BY cp.difficulty
-        ),
-        WordStats AS (
-            SELECT 
-                cwu.word,
-                COUNT(*) as times_encountered,
-                SUM(CASE WHEN cs.solved = 1 THEN 1 ELSE 0 END) as times_solved,
-                AVG(cwu.difficulty_rating) as difficulty
-            FROM crossword_word_usage cwu
-            JOIN crossword_puzzles cp ON cwu.puzzle_id = cp.id
-            JOIN crossword_scores cs ON cp.id = cs.puzzle_id
-            WHERE cs.user_id = :user_id
-            GROUP BY cwu.word
-            ORDER BY times_encountered DESC
-            LIMIT 10
-        ),
-        RecentGames AS (
-            SELECT 
-                cs.*,
-                cp.theme,
-                cp.difficulty,
-                cp.word_count,
-                RANK() OVER (ORDER BY cs.puzzle_date DESC) as recency_rank
+            """)
+            diff_rows = session_db.execute(diff_query, {"user_id": current_user.id}).fetchall()
+
+            # Recent games
+            recent_query = text("""
+            SELECT cs.id, cs.puzzle_date, cs.solved, cs.time_taken,
+                   cs.hints_used, cs.completion_percentage,
+                   cp.theme, cp.difficulty, cp.word_count
             FROM crossword_scores cs
             JOIN crossword_puzzles cp ON cs.puzzle_id = cp.id
             WHERE cs.user_id = :user_id
-        )
-        SELECT 
-            us.*,
-            (SELECT JSON_ARRAYAGG(JSON_OBJECT(
-                'difficulty', difficulty,
-                'games_played', games_played,
-                'games_won', games_won,
-                'avg_time', avg_time
-            )) FROM DifficultyStats) as difficulty_stats,
-            (SELECT JSON_ARRAYAGG(JSON_OBJECT(
-                'word', word,
-                'times_encountered', times_encountered,
-                'times_solved', times_solved,
-                'difficulty', difficulty
-            )) FROM WordStats) as word_stats,
-            (SELECT JSON_ARRAYAGG(JSON_OBJECT(
-                'id', id,
-                'puzzle_date', puzzle_date,
-                'solved', solved,
-                'time_taken', time_taken,
-                'hints_used', hints_used,
-                'completion_percentage', completion_percentage,
-                'theme', theme,
-                'difficulty', difficulty,
-                'word_count', word_count
-            )) FROM RecentGames WHERE recency_rank <= 10) as recent_games
-        FROM UserStats us
-        """)
+            ORDER BY cs.puzzle_date DESC
+            LIMIT 10
+            """)
+            recent_rows = session_db.execute(recent_query, {"user_id": current_user.id}).fetchall()
 
-        result = session_db.execute(stats_query, {"user_id": current_user.id}).fetchone()
+            # Trend data (last 30 days)
+            trend_query = text("""
+            SELECT DATE(cs.puzzle_date) as play_date,
+                   AVG(cs.completion_percentage) as avg_completion,
+                   AVG(CASE WHEN cs.solved = true THEN cs.time_taken END) as avg_time,
+                   COUNT(*) as games_played
+            FROM crossword_scores cs
+            WHERE cs.user_id = :user_id
+            AND cs.puzzle_date >= CURRENT_DATE - INTERVAL '30 days'
+            GROUP BY DATE(cs.puzzle_date)
+            ORDER BY play_date
+            """)
+            trend_data = session_db.execute(trend_query, {"user_id": current_user.id}).fetchall()
 
-        # Performance trend query
-        trend_query = text("""
-        SELECT 
-            DATE(cs.puzzle_date) as date,
-            AVG(cs.completion_percentage) as avg_completion,
-            AVG(CASE WHEN cs.solved = 1 THEN cs.time_taken END) as avg_time,
-            COUNT(*) as games_played
-        FROM crossword_scores cs
-        WHERE cs.user_id = :user_id
-        AND cs.puzzle_date >= DATE_SUB(CURRENT_DATE, INTERVAL 30 DAY)
-        GROUP BY DATE(cs.puzzle_date)
-        ORDER BY date
-        """)
-
-        trend_data = session_db.execute(trend_query, {"user_id": current_user.id}).fetchall()
-
-        # Parse JSON data
-        stats = {
-            'games_played': result.games_played or 0,
-            'games_won': result.games_won or 0,
-            'win_rate': (result.games_won / result.games_played * 100) if result.games_played else 0,
-            'avg_solve_time': int(result.avg_solve_time) if result.avg_solve_time else 0,
-            'best_time': int(result.best_time) if result.best_time else 0,
-            'avg_hints': round(result.avg_hints, 1) if result.avg_hints else 0,
-            'avg_completion': round(result.avg_completion, 1) if result.avg_completion else 0,
-            'perfect_games': result.perfect_games or 0,
-            'difficulty_stats': json.loads(result.difficulty_stats) if result.difficulty_stats else [],
-            'word_stats': json.loads(result.word_stats) if result.word_stats else [],
-            'recent_games': json.loads(result.recent_games) if result.recent_games else [],
-            'trend_data': [{'date': row.date.strftime('%Y-%m-%d'),
-                            'avg_completion': float(row.avg_completion),
-                            'avg_time': int(row.avg_time) if row.avg_time else 0,
-                            'games_played': row.games_played} for row in trend_data]
-        }
+            stats = {
+                'games_played': result.games_played or 0,
+                'games_won': result.games_won or 0,
+                'win_rate': (result.games_won / result.games_played * 100) if result.games_played else 0,
+                'avg_solve_time': int(result.avg_solve_time) if result.avg_solve_time else 0,
+                'best_time': int(result.best_time) if result.best_time else 0,
+                'avg_hints': round(float(result.avg_hints), 1) if result.avg_hints else 0,
+                'avg_completion': round(float(result.avg_completion), 1) if result.avg_completion else 0,
+                'perfect_games': result.perfect_games or 0,
+                'difficulty_stats': [{'difficulty': r.difficulty, 'games_played': r.games_played,
+                                      'games_won': r.games_won,
+                                      'avg_time': int(r.avg_time) if r.avg_time else 0}
+                                     for r in diff_rows],
+                'word_stats': [],
+                'recent_games': [{'id': r.id, 'puzzle_date': str(r.puzzle_date),
+                                  'solved': r.solved, 'time_taken': r.time_taken,
+                                  'hints_used': r.hints_used,
+                                  'completion_percentage': float(r.completion_percentage) if r.completion_percentage else 0,
+                                  'theme': r.theme, 'difficulty': r.difficulty,
+                                  'word_count': r.word_count}
+                                 for r in recent_rows],
+                'trend_data': [{'date': str(row.play_date),
+                                'avg_completion': float(row.avg_completion) if row.avg_completion else 0,
+                                'avg_time': int(row.avg_time) if row.avg_time else 0,
+                                'games_played': row.games_played} for row in trend_data]
+            }
+        except Exception:
+            try:
+                session_db.rollback()
+            except Exception:
+                pass
+            stats = {
+                'games_played': 0, 'games_won': 0, 'win_rate': 0,
+                'avg_solve_time': 0, 'best_time': 0, 'avg_hints': 0,
+                'avg_completion': 0, 'perfect_games': 0,
+                'difficulty_stats': [], 'word_stats': [],
+                'recent_games': [], 'trend_data': []
+            }
 
     return render_template('crossword_stats.html', stats=stats)
 

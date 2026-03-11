@@ -46,30 +46,44 @@ class BaseballWordle:
             if random.random() < 0.6:  # 60% chance for featured player
                 pool = self.featured_players
             else:
+                try:
+                    query = text("""
+                        SELECT DISTINCT p.nameLast
+                        FROM people p
+                        JOIN batting b ON p.playerID = b.playerID
+                        WHERE LENGTH(p.nameLast) = 5
+                        AND p.nameLast ~ '^[A-Za-z]+$'
+                        GROUP BY p.playerID, p.nameLast
+                        HAVING SUM(b.b_AB) > 500
+                        ORDER BY RANDOM()
+                        LIMIT 20
+                    """)
+                    results = session_db.execute(query).fetchall()
+                    pool = [row[0].upper() for row in results]
+                except Exception:
+                    try:
+                        session_db.rollback()
+                    except Exception:
+                        pass
+                    pool = []
+        else:  # random
+            try:
                 query = text("""
-                    SELECT DISTINCT p.nameLast
-                    FROM people p
-                    JOIN batting b ON p.playerID = b.playerID
-                    WHERE LENGTH(p.nameLast) = 5 
-                    AND p.nameLast REGEXP '^[A-Za-z]+$'
-                    GROUP BY p.playerID, p.nameLast
-                    HAVING SUM(b.b_G) > 100  -- Players with significant games played
-                    ORDER BY RAND()
-                    LIMIT 20
+                    SELECT DISTINCT nameLast
+                    FROM people
+                    WHERE LENGTH(nameLast) = 5
+                    AND nameLast ~ '^[A-Za-z]+$'
+                    ORDER BY RANDOM()
+                    LIMIT 50
                 """)
                 results = session_db.execute(query).fetchall()
                 pool = [row[0].upper() for row in results]
-        else:  # random
-            query = text("""
-                SELECT DISTINCT nameLast
-                FROM people 
-                WHERE LENGTH(nameLast) = 5 
-                AND nameLast REGEXP '^[A-Za-z]+$'
-                ORDER BY RAND()
-                LIMIT 50
-            """)
-            results = session_db.execute(query).fetchall()
-            pool = [row[0].upper() for row in results]
+            except Exception:
+                try:
+                    session_db.rollback()
+                except Exception:
+                    pass
+                pool = []
 
         if not pool:
             pool = self.common_names  # Fallback
@@ -78,31 +92,36 @@ class BaseballWordle:
 
     def get_player_hint(self, session_db, word, attempt_number):
         """Get progressively more helpful hints based on attempt number"""
-        # Try to get player info with career stats
-        query = text("""
-            SELECT p.nameFirst, p.nameLast, p.bats, p.throws, 
-                   MIN(b.yearId) as first_year, MAX(b.yearId) as last_year,
-                   COUNT(DISTINCT b.teamID) as num_teams,
-                   SUM(b.b_G) as total_games, SUM(b.b_HR) as total_hr,
-                   SUM(b.b_H) as total_hits, SUM(b.b_RBI) as total_rbi
-            FROM people p
-            LEFT JOIN batting b ON p.playerID = b.playerID
-            WHERE UPPER(p.nameLast) = :word
-            GROUP BY p.playerID, p.nameFirst, p.nameLast, p.bats, p.throws
-            ORDER BY total_games DESC
-            LIMIT 1
-        """)
+        try:
+            query = text("""
+                SELECT p.nameFirst, p.nameLast,
+                       MIN(b.yearId) as first_year, MAX(b.yearId) as last_year,
+                       COUNT(DISTINCT b.yearId) as num_seasons,
+                       SUM(b.b_AB) as total_ab, SUM(b.b_HR) as total_hr,
+                       SUM(b.b_RBI) as total_rbi
+                FROM people p
+                LEFT JOIN batting b ON p.playerID = b.playerID
+                WHERE UPPER(p.nameLast) = :word
+                GROUP BY p.playerID, p.nameFirst, p.nameLast
+                ORDER BY total_ab DESC NULLS LAST
+                LIMIT 1
+            """)
 
-        result = session_db.execute(query, {"word": word}).fetchone()
+            result = session_db.execute(query, {"word": word}).fetchone()
+        except Exception:
+            try:
+                session_db.rollback()
+            except Exception:
+                pass
+            result = None
 
         if not result:
             return self._get_generic_hint(attempt_number)
 
-        first_name, last_name, bats, throws, first_year, last_year, num_teams, games, hrs, hits, rbis = result
+        first_name, last_name, first_year, last_year, num_seasons, ab, hrs, rbis = result
 
         # Progressive hints based on attempt number
         if attempt_number == 3:
-            # First hint: decade and era
             if first_year and last_year:
                 decade = f"{(first_year // 10) * 10}s"
                 if last_year > 2010:
@@ -118,26 +137,19 @@ class BaseballWordle:
                 return "This player's name appears in baseball records"
 
         elif attempt_number == 4:
-            # Second hint: more specific about their playing style/stats
-            if bats and throws:
-                hand_info = f"bats {self._format_hand(bats)}, throws {self._format_hand(throws)}"
-            else:
-                hand_info = "has a unique playing style"
-
-            if hrs and games and hrs > 0:
-                hr_rate = hrs / games * 162  # HRs per 162 games
+            if hrs and ab and hrs > 0:
+                hr_rate = hrs / max(ab, 1) * 600  # approx HRs per 600 AB
                 if hr_rate > 30:
                     power_desc = "power hitter"
                 elif hr_rate > 15:
                     power_desc = "solid hitter"
                 else:
                     power_desc = "contact hitter"
-                return f"This {power_desc} {hand_info}"
+                return f"This {power_desc} played {num_seasons or '?'} seasons"
             else:
-                return f"This player {hand_info}"
+                return f"This player played {num_seasons or '?'} seasons"
 
         elif attempt_number == 5:
-            # Third hint: first letter and career length
             first_letter = first_name[0] if first_name else "?"
             if first_year and last_year:
                 years_played = last_year - first_year + 1
@@ -146,19 +158,7 @@ class BaseballWordle:
                 return f"First name starts with '{first_letter}'"
 
         else:
-            # Shouldn't get here, but just in case
             return self._get_generic_hint(attempt_number)
-
-    def _format_hand(self, hand):
-        """Format batting/throwing hand"""
-        if hand == 'L':
-            return 'left'
-        elif hand == 'R':
-            return 'right'
-        elif hand == 'B':
-            return 'both'
-        else:
-            return 'unknown'
 
     def _get_generic_hint(self, attempt_number):
         """Generic hints when player data isn't available"""

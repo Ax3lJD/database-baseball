@@ -12,42 +12,8 @@ class BaseballStrands:
 
     def get_themed_words(self, session_db, theme):
         """Get words from database based on theme"""
+        # Only include queries that work with our available tables (people, batting, teams)
         themes = {
-            "Hall of Fame Players": """
-                SELECT DISTINCT p.nameLast
-                FROM people p
-                JOIN halloffame h ON p.playerID = h.playerID
-                WHERE h.inducted = 'Y'
-                AND LENGTH(p.nameLast) BETWEEN 4 AND 8
-                ORDER BY RAND()
-                LIMIT :limit
-            """,
-
-            "Team Cities": """
-                SELECT DISTINCT 
-                    CASE 
-                        WHEN team_name LIKE '% %' THEN SUBSTRING_INDEX(team_name, ' ', 1)
-                        ELSE team_name
-                    END as city
-                FROM teams
-                WHERE yearID >= 1990
-                AND team_name IS NOT NULL
-                HAVING LENGTH(city) BETWEEN 4 AND 8
-                AND city NOT IN ('of', 'the', 'and')
-                ORDER BY RAND()
-                LIMIT :limit
-            """,
-
-            "MVP Winners": """
-                SELECT DISTINCT p.nameLast
-                FROM people p
-                JOIN awards a ON p.playerID = a.playerID
-                WHERE a.awardID = 'Most Valuable Player'
-                AND LENGTH(p.nameLast) BETWEEN 4 AND 8
-                ORDER BY RAND()
-                LIMIT :limit
-            """,
-
             "Home Run Leaders": """
                 SELECT DISTINCT p.nameLast
                 FROM people p
@@ -55,33 +21,7 @@ class BaseballStrands:
                 GROUP BY p.playerID, p.nameLast
                 HAVING SUM(b.b_HR) >= 300
                 AND LENGTH(p.nameLast) BETWEEN 4 AND 8
-                ORDER BY RAND()
-                LIMIT :limit
-            """,
-
-            "Cy Young Winners": """
-                SELECT DISTINCT p.nameLast
-                FROM people p
-                JOIN awards a ON p.playerID = a.playerID
-                WHERE a.awardID = 'Cy Young Award'
-                AND LENGTH(p.nameLast) BETWEEN 4 AND 8
-                ORDER BY RAND()
-                LIMIT :limit
-            """,
-
-            "Stadium Names": """
-                SELECT DISTINCT 
-                    CASE 
-                        WHEN park_name LIKE '% Park' THEN SUBSTRING_INDEX(park_name, ' Park', 1)
-                        WHEN park_name LIKE '% Field' THEN SUBSTRING_INDEX(park_name, ' Field', 1)
-                        WHEN park_name LIKE '% Stadium' THEN SUBSTRING_INDEX(park_name, ' Stadium', 1)
-                        ELSE park_name
-                    END as stadium_name
-                FROM parks
-                WHERE park_name IS NOT NULL
-                HAVING LENGTH(stadium_name) BETWEEN 4 AND 8
-                AND stadium_name NOT LIKE '%/%'
-                ORDER BY RAND()
+                ORDER BY RANDOM()
                 LIMIT :limit
             """,
 
@@ -90,23 +30,31 @@ class BaseballStrands:
                 FROM people p
                 JOIN batting b ON p.playerID = b.playerID
                 WHERE b.b_AB >= 502
-                AND (b.b_H / NULLIF(b.b_AB, 0)) >= 0.350
+                AND (CAST(b.b_H AS FLOAT) / NULLIF(b.b_AB, 0)) >= 0.350
                 AND LENGTH(p.nameLast) BETWEEN 4 AND 8
                 GROUP BY p.playerID, p.nameLast
-                ORDER BY RAND()
+                ORDER BY RANDOM()
                 LIMIT :limit
             """
         }
 
         if theme in themes:
             num_words = random.randint(self.min_words, self.max_words)
-            query = text(themes[theme])
-            results = session_db.execute(query, {"limit": num_words}).fetchall()
-            words = [row[0].upper() for row in results if row[0] and row[0].isalpha()]
+            words = []
+            try:
+                query = text(themes[theme])
+                results = session_db.execute(query, {"limit": num_words}).fetchall()
+                words = [row[0].upper() for row in results if row[0] and row[0].isalpha()]
+            except Exception:
+                try:
+                    session_db.rollback()
+                except Exception:
+                    pass
 
             # If not enough words found, add some generic baseball terms
             if len(words) < self.min_words:
-                backup_words = ["STRIKE", "BALL", "HOME", "BASE", "PITCH", "CATCH", "SLIDE"]
+                backup_words = ["STRIKE", "BALL", "HOME", "BASE", "PITCH", "CATCH", "SLIDE",
+                                "HOMER", "MOUND", "STEAL", "BUNT", "DUGOUT", "PLATE", "SWING"]
                 random.shuffle(backup_words)
                 words.extend(backup_words[:self.min_words - len(words)])
 
@@ -119,15 +67,10 @@ class BaseballStrands:
         today = date.today()
         random.seed(today.strftime("%Y%m%d"))
 
-        # Select theme
+        # Select theme (only themes with working DB queries or good fallback)
         themes = [
-            "Hall of Fame Players",
-            "Team Cities",
-            "MVP Winners",
             "Home Run Leaders",
-            "Cy Young Winners",
-            "Stadium Names",
-            "Batting Champions"
+            "Batting Champions",
         ]
         theme = random.choice(themes)
 
