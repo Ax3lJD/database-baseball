@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-4">
+    <h2 class="text-center mb-4">Baseball Crossword</h2>
+    <p class="text-center text-muted mb-4">Theme: {{ state.puzzle.theme }}</p>
+
+    {% if state.game_over %}
+        <div class="alert alert-success text-center">
+            <h3>Congratulations! You solved the crossword!</h3>
+            <p>Time: {{ state.time_taken }} seconds</p>
+            <p>Hints used: {{ state.hints_used }}</p>
+            <a href="{{ url_for('crossword_stats') }}" class="btn btn-primary">View Stats</a>
+            <a href="{{ url_for('clear_crossword_session') }}" class="btn btn-secondary">New Puzzle</a>
+        </div>
+    {% endif %}
+
+    <div class="row">
+        <div class="col-md-6">
+            <!-- Crossword Grid -->
+            <div class="crossword-grid mb-4" style="max-width: 400px; margin: 0 auto;">
+                <form method="post" id="crossword-form">
+                    <input type="hidden" name="action" value="update_cell">
+                    <input type="hidden" name="row" id="current-row">
+                    <input type="hidden" name="col" id="current-col">
+                    <input type="hidden" name="value" id="current-value">
+
+                    <table class="table table-bordered" style="table-layout: fixed;">
+                        {% for row_idx in range(state.puzzle.grid|length) %}
+                        <tr>
+                            {% for col_idx in range(state.puzzle.grid[row_idx]|length) %}
+                            <td style="width: 50px; height: 50px; padding: 0; position: relative;">
+                                {% if state.puzzle.grid[row_idx][col_idx] != ' ' %}
+                                    <input type="text"
+                                           class="form-control text-center crossword-cell"
+                                           maxlength="1"
+                                           value="{{ state.user_grid[row_idx][col_idx] }}"
+                                           data-row="{{ row_idx }}"
+                                           data-col="{{ col_idx }}"
+                                           style="width: 100%; height: 100%; border: none; font-size: 24px; text-transform: uppercase;"
+                                           autocomplete="off"
+                                           {% if state.game_over %}disabled{% endif %}>
+
+                                    <!-- Add clue numbers -->
+                                    {% for num, clue_info in state.puzzle.across_clues.items() %}
+                                        {% if clue_info.row == row_idx and clue_info.col == col_idx %}
+                                            <span style="position: absolute; top: 2px; left: 4px; font-size: 10px;">{{ num }}</span>
+                                        {% endif %}
+                                    {% endfor %}
+
+                                    {% for num, clue_info in state.puzzle.down_clues.items() %}
+                                        {% if clue_info.row == row_idx and clue_info.col == col_idx %}
+                                            {% set is_across_position = false %}
+                                            {% for across_num, across_clue in state.puzzle.across_clues.items() %}
+                                                {% if across_clue.row == row_idx and across_clue.col == col_idx %}
+                                                    {% set is_across_position = true %}
+                                                {% endif %}
+                                            {% endfor %}
+                                            {% if not is_across_position %}
+                                                <span style="position: absolute; top: 2px; left: 4px; font-size: 10px;">{{ num }}</span>
+                                            {% endif %}
+                                        {% endif %}
+                                    {% endfor %}
+                                {% else %}
+                                    <div style="background-color: black; width: 100%; height: 100%;"></div>
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                    </table>
+                </form>
+            </div>
+
+            <!-- Control Buttons -->
+             <div class="text-center mb-4">
+              {% if not state.game_over %}
+                <!-- Get Hint -->
+                <form method="post" style="display:inline-block; margin:0 5px;">
+                  <input type="hidden" name="action" value="get_hint">
+                  <button type="submit" class="btn btn-info">
+                    Get Hint ({{ state.hints_used }} used)
+                  </button>
+                </form>
+
+                <!-- Clear Grid -->
+                <form method="post" style="display:inline-block; margin:0 5px;">
+                  <input type="hidden" name="action" value="clear">
+                  <button type="submit" class="btn btn-warning">Clear Grid</button>
+                </form>
+
+                <!-- **Submit Crossword** -->
+                <form method="post" style="display:inline-block; margin:0 5px;">
+                  <input type="hidden" name="action" value="submit">
+                  <button type="submit" class="btn btn-primary">Submit Crossword</button>
+                </form>
+              {% endif %}
+            </div>
+
+        <div class="col-md-6">
+            <!-- Clues -->
+            <div class="clues-container">
+                <h4>Across</h4>
+                <ul class="list-unstyled">
+                    {% for num, clue_info in state.puzzle.across_clues.items() %}
+                    <li class="mb-2 {% if num in state.completed_words.across %}text-success text-decoration-line-through{% endif %}">
+                        <strong>{{ num }}.</strong> {{ clue_info.clue }}
+                    </li>
+                    {% endfor %}
+                </ul>
+
+                <h4 class="mt-4">Down</h4>
+                <ul class="list-unstyled">
+                    {% for num, clue_info in state.puzzle.down_clues.items() %}
+                    <li class="mb-2 {% if num in state.completed_words.down %}text-success text-decoration-line-through{% endif %}">
+                        <strong>{{ num }}.</strong> {{ clue_info.clue }}
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hint Display -->
+    <!-- Hint Display -->
+{% if state.current_hint %}
+    <div class="alert alert-info">
+        {% if state.current_hint.type == 'statistical_hint' %}
+            <strong>Hint:</strong> {{ state.current_hint.message }}
+        {% elif state.current_hint.type == 'reveal_letter' %}
+            <strong>Letter revealed!</strong> Check the grid.
+        {% elif state.current_hint.type == 'reveal_word' %}
+            <strong>Word revealed!</strong> {{ state.current_hint.direction|capitalize }} {{ state.current_hint.number }}
+        {% endif %}
+    </div>
+{% endif %}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('crossword-form');
+    const cells = document.querySelectorAll('.crossword-cell');
+
+    cells.forEach(cell => {
+        cell.addEventListener('input', function(e) {
+            const row = this.dataset.row;
+            const col = this.dataset.col;
+            const value = this.value.toUpperCase();
+
+            document.getElementById('current-row').value = row;
+            document.getElementById('current-col').value = col;
+            document.getElementById('current-value').value = value;
+
+            form.submit();
+        });
+
+        cell.addEventListener('keydown', function(e) {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const currentIndex = Array.from(cells).indexOf(this);
+                const nextIndex = (currentIndex + 1) % cells.length;
+                cells[nextIndex].focus();
+                cells[nextIndex].select();
+            }
+        });
+    });
+});
+</script>
+
+<style>
+.crossword-cell:focus {
+    outline: 2px solid #007bff;
+    outline-offset: -2px;
+}
+
+.crossword-grid table {
+    border-collapse: collapse;
+}
+
+.crossword-grid td {
+    border: 1px solid #000;
+}
+
+.crossword-grid input {
+    background: transparent;
+}
+
+.alert-info {
+    margin-top: 20px;
+    padding: 15px;
+    border-radius: 5px;
+}
+</style>
+{% endblock %}

@@ -1,25 +1,86 @@
 {% extends "base.html" %}
 
 {% block content %}
-    <div class="container py-4">
-        <!-- Display question number -->
-        <p class="text-end text-muted">Question {{ question_number }} of 10</p>
+<div class="container py-4">
+    <!-- Difficulty Selector - only show if not in middle of a round -->
+    {% if session.question_count == 0 %}
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Baseball Trivia Challenge</h5>
+        </div>
+        <div class="card-body">
+            <form method="post" class="mb-0">
+                <div class="row align-items-center">
+                    <div class="col-md-4">
+                        <label for="difficulty" class="form-label">Difficulty Level:</label>
+                        <select name="difficulty" id="difficulty" class="form-select">
+                            <option value="easy" {% if difficulty == 'easy' %}selected{% endif %}>Rookie (Easy)</option>
+                            <option value="medium" {% if difficulty == 'medium' %}selected{% endif %}>All-Star (Medium)</option>
+                            <option value="hard" {% if difficulty == 'hard' %}selected{% endif %}>Hall of Fame (Hard)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3 mt-3">
+                        <button type="submit" name="set_difficulty" value="1" class="btn btn-primary">Set Difficulty</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
 
-        <h1 class="display-4 text-center mb-4">{{ question }}</h1>
+    <!-- Question Display -->
+    <div class="card">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <h2 class="h5 mb-0">Question #{{ question_number }}</h2>
+            <span class="badge bg-{{ difficulty == 'easy' and 'success' or (difficulty == 'medium' and 'primary' or 'danger') }} p-2">
+                {{ difficulty|capitalize }} Mode
+            </span>
+        </div>
+        <div class="card-body">
+            <p class="text-end text-muted mb-3">Question {{ question_number }} of 10</p>
+            <h3 class="h4 text-center mb-4">{{ question }}</h3>
 
-        <form method="post">
-            {% for letter, text in options.items() %}
-                <div class="form-check">
-                    <input class="form-check-input" type="radio" name="answer" value="{{ letter }}" required>
-                    <label class="form-check-label" for="{{ letter }}">
-                        {{ letter }}) {{ text }}
+            <form method="post">
+                {% for letter, text in options.items() %}
+                <div class="form-check p-3 mb-2 border rounded hover-highlight">
+                    <input class="form-check-input" type="radio" name="answer" id="option-{{ letter }}" value="{{ letter }}" required>
+                    <label class="form-check-label w-100" for="option-{{ letter }}">
+                        <strong>{{ letter|upper }})</strong> {{ text }}
                     </label>
                 </div>
-            {% endfor %}
-            
-            <div class="d-flex justify-content-center mt-3">
-                <button type="submit" class="btn btn-primary">Submit</button>
+                {% endfor %}
+
+                <div class="d-flex justify-content-center mt-4">
+                    <button type="submit" class="btn btn-lg btn-primary">Submit Answer</button>
+                </div>
+            </form>
+        </div>
+        <div class="card-footer text-muted">
+            <div class="d-flex justify-content-between">
+                <div>Current Score: {{ session.score }} correct out of {{ session.question_count }} questions</div>
             </div>
-        </form>
+        </div>
     </div>
+</div>
+
+<style>
+    .hover-highlight:hover {
+        background-color: #f8f9fa;
+        cursor: pointer;
+    }
+
+    .badge {
+        font-size: 95%;
+    }
+</style>
+
+<script>
+    // Make the entire div clickable for each option
+    document.querySelectorAll('.hover-highlight').forEach(div => {
+        div.addEventListener('click', function() {
+            const radio = this.querySelector('input[type="radio"]');
+            radio.checked = true;
+        });
+    });
+</script>
 {% endblock %}

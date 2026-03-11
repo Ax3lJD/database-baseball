@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-4">
+    <h1 class="text-center mb-4">Baseball Strands</h1>
+    <p class="text-center">Find all {{ state.puzzle.theme }} hidden in the grid!</p>
+
+    <!-- Hint Display -->
+    {% if state.current_hint %}
+    <div class="alert alert-info text-center mb-3">
+        <strong>Hint:</strong> {{ state.current_hint.message }}
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <div class="col-md-8">
+            <!-- Word Search Grid -->
+            <div class="word-grid">
+                {% for i in range(state.puzzle.grid|length) %}
+                    <div class="grid-row">
+                    {% for j in range(state.puzzle.grid[i]|length) %}
+                        <div class="grid-cell
+                             {% if (i,j) in state.selected_cells %}selected{% endif %}
+                             {% if (i,j) in state.highlighted_cells %}highlighted{% endif %}"
+                             onclick="selectCell({{ i }}, {{ j }})">
+                            {{ state.puzzle.grid[i][j] }}
+                        </div>
+                    {% endfor %}
+                    </div>
+                {% endfor %}
+            </div>
+
+            <!-- Controls -->
+            {% if not state.game_over %}
+            <div class="text-center mt-3">
+                <form method="post" id="strands-form" style="display: none;">
+                    <input type="hidden" name="action" id="form-action">
+                    <input type="hidden" name="row" id="form-row">
+                    <input type="hidden" name="col" id="form-col">
+                </form>
+
+                <button class="btn btn-primary me-2" onclick="checkWord()">Check Word</button>
+                <button class="btn btn-secondary me-2" onclick="clearSelection()">Clear</button>
+                <button class="btn btn-info" onclick="getHint()">
+                    Click to Get Hint ({{ state.hints_used }})
+                </button>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="col-md-4">
+            <!-- Found Words -->
+            <h4>Found Words ({{ state.found_words|length }}/{{ state.puzzle.words|length }})</h4>
+            <ul class="list-group">
+                {% for word in state.puzzle.words %}
+                    <li class="list-group-item {% if word in state.found_words %}list-group-item-success{% endif %}">
+                        {% if word in state.found_words %}
+                            {{ word }}
+                        {% else %}
+                            {{ '?' * word|length }}
+                        {% endif %}
+                    </li>
+                {% endfor %}
+            </ul>
+
+            <!-- Hint Counter -->
+            <div class="mt-3">
+                <p><strong>Hints Used:</strong> {{ state.hints_used }}</p>
+            </div>
+        </div>
+    </div>
+
+    {% if state.game_over %}
+    <div class="text-center mt-4">
+        <a href="{{ url_for('strands_stats') }}" class="btn btn-info me-2">View Stats</a>
+        <a href="{{ url_for('index') }}" class="btn btn-secondary">Back to Games</a>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.word-grid {
+    display: inline-block;
+    border: 2px solid #dee2e6;
+    background: #f8f9fa;
+}
+
+.grid-row {
+    display: flex;
+}
+
+.grid-cell {
+    width: 40px;
+    height: 40px;
+    border: 1px solid #dee2e6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-weight: bold;
+    background: white;
+    transition: all 0.2s;
+}
+
+.grid-cell:hover {
+    background: #e9ecef;
+}
+
+.grid-cell.selected {
+    background: #0d6efd;
+    color: white;
+}
+
+.grid-cell.highlighted {
+    background: #ffc107;
+    color: black;
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+</style>
+
+<script>
+function selectCell(row, col) {
+    const form = document.getElementById('strands-form');
+    document.getElementById('form-action').value = 'select_cell';
+    document.getElementById('form-row').value = row;
+    document.getElementById('form-col').value = col;
+    form.submit();
+}
+
+function checkWord() {
+    const form = document.getElementById('strands-form');
+    document.getElementById('form-action').value = 'check_word';
+    form.submit();
+}
+
+function clearSelection() {
+    const form = document.getElementById('strands-form');
+    document.getElementById('form-action').value = 'clear_selection';
+    form.submit();
+}
+
+function getHint() {
+    const form = document.getElementById('strands-form');
+    document.getElementById('form-action').value = 'get_hint';
+    form.submit();
+}
+</script>
+{% endblock %}

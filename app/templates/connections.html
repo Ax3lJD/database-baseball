@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-4">
+    <h1 class="text-center mb-4">Baseball Connections</h1>
+    <p class="text-center">Group 4 related baseball terms together!</p>
+
+    <div class="text-center mb-3">
+        <span class="badge bg-danger">Mistakes: {{ state.mistakes }}/{{ max_mistakes }}</span>
+    </div>
+
+    <!-- Found Groups -->
+    {% for group in state.found_groups %}
+    <div class="found-group mb-3 difficulty-{{ group.difficulty }}">
+        <h5>{{ group.category }}</h5>
+        <p class="mb-2"><small>{{ group.description }}</small></p>
+        <div class="d-flex justify-content-center gap-2">
+            {% for item in group.items %}
+            <div class="group-item">{{ item }}</div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+
+    <!-- Remaining Items -->
+    {% if not state.game_over %}
+    <div class="items-grid">
+        {% for item in state.puzzle.puzzle_items %}
+        <div class="item-card {% if item in state.selected %}selected{% endif %}"
+             onclick="selectItem('{{ item }}')">
+            {{ item }}
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="text-center mt-4">
+        <form method="post" id="connections-form" style="display: none;">
+            <input type="hidden" name="action" id="form-action">
+            <input type="hidden" name="item" id="form-item">
+        </form>
+
+        <button class="btn btn-primary me-2"
+                onclick="submitGuess()"
+                {% if state.selected|length != 4 %}disabled{% endif %}>
+            Submit
+        </button>
+        <button class="btn btn-secondary" onclick="resetSelection()">Clear</button>
+    </div>
+    {% endif %}
+
+    <!-- Game Over Section -->
+    {% if state.game_over %}
+        <!-- Show remaining groups that weren't found -->
+        {% for category, data in state.puzzle.categories.items() %}
+            {% if category not in state.found_groups|map(attribute='category') %}
+            <div class="found-group mb-3 difficulty-{{ data.difficulty }} missed">
+                <h5>{{ category }}</h5>
+                <p class="mb-2"><small>{{ data.description }}</small></p>
+                <div class="d-flex justify-content-center gap-2">
+                    {% for item in data['items'] %}
+                    <div class="group-item">{{ item }}</div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        {% endfor %}
+
+        <!-- Navigation buttons - outside the loop -->
+        <div class="text-center mt-4">
+            <a href="{{ url_for('connections_stats') }}" class="btn btn-info me-2">View Stats</a>
+            <a href="{{ url_for('index') }}" class="btn btn-secondary">Back to Games</a>
+        </div>
+    {% endif %}
+</div>
+
+<style>
+.items-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    max-width: 600px;
+    margin: 20px auto;
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 10px;
+}
+
+.item-card {
+    border: 2px solid #dee2e6;
+    padding: 15px;
+    text-align: center;
+    cursor: pointer;
+    background: white;
+    transition: all 0.2s;
+    border-radius: 8px;
+    min-height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+}
+
+.item-card:hover {
+    background: #e9ecef;
+    transform: translateY(-2px);
+}
+
+.item-card.selected {
+    background: #0d6efd;
+    color: white;
+    border-color: #0d6efd;
+}
+
+.found-group {
+    padding: 15px;
+    border-radius: 8px;
+    margin: 0 auto;
+    max-width: 600px;
+}
+
+.difficulty-1 { background: #198754; color: white; }
+.difficulty-2 { background: #ffc107; color: black; }
+.difficulty-3 { background: #fd7e14; color: white; }
+.difficulty-4 { background: #dc3545; color: white; }
+
+.found-group.missed {
+    opacity: 0.7;
+}
+
+.group-item {
+    background: rgba(255,255,255,0.9);
+    padding: 8px 12px;
+    border-radius: 4px;
+    color: black;
+    min-width: 100px;
+    font-weight: bold;
+}
+</style>
+
+<script>
+function selectItem(item) {
+    const form = document.getElementById('connections-form');
+    const actionInput = document.getElementById('form-action');
+    const itemInput = document.getElementById('form-item');
+
+    actionInput.value = 'select';
+    itemInput.value = item;
+    form.submit();
+}
+
+function submitGuess() {
+    const form = document.getElementById('connections-form');
+    const actionInput = document.getElementById('form-action');
+
+    actionInput.value = 'submit';
+    form.submit();
+}
+
+function resetSelection() {
+    const form = document.getElementById('connections-form');
+    const actionInput = document.getElementById('form-action');
+
+    actionInput.value = 'reset_selection';
+    form.submit();
+}
+</script>
+{% endblock %}
