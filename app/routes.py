@@ -100,6 +100,7 @@ def register():
     return render_template('register.html', title='Register', form=form)
 
 @app.route('/trivia', methods=['GET', 'POST'])
+@login_required
 def trivia():
     try:
         with Session() as session_db:
@@ -180,6 +181,7 @@ def trivia():
         return redirect(url_for('index'))
 
 @app.route('/trivia/results')
+@login_required
 def trivia_results():
     session_db = Session()
 
