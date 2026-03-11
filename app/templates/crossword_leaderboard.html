@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-4">
+    <h2 class="text-center mb-4">Crossword Leaderboard</h2>
+
+    {% if current_user.is_authenticated and user_rank %}
+    <div class="alert alert-info text-center mb-4">
+        Your current rank: <strong>#{{ user_rank }}</strong>
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <div class="col-md-10 offset-md-1">
+            <div class="card">
+                <div class="card-body">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>Player</th>
+                                <th>Games</th>
+                                <th>Win Rate</th>
+                                <th>Avg Time</th>
+                                <th>Best Time</th>
+                                <th>Perfect Games</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for player in leaderboard %}
+                            <tr {% if current_user.is_authenticated and player.id == current_user.id %}class="table-primary"{% endif %}>
+                                <td>
+                                    #{{ player.overall_rank }}
+                                    {% if player.overall_rank == 1 %}
+                                        🥇
+                                    {% elif player.overall_rank == 2 %}
+                                        🥈
+                                    {% elif player.overall_rank == 3 %}
+                                        🥉
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <strong>{{ player.username }}</strong>
+                                    {% if player.speed_rank == 1 %}
+                                        <span class="badge bg-info" title="Fastest Solver">⚡</span>
+                                    {% endif %}
+                                    {% if player.perfect_rank == 1 %}
+                                        <span class="badge bg-success" title="Most Perfect Games">🎯</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ player.total_games }}</td>
+                                <td>{{ player.win_rate|round(1) }}%</td>
+                                <td>{{ player.avg_solve_time|round }}s</td>
+                                <td>{{ player.best_time }}s</td>
+                                <td>{{ player.perfect_games }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="text-center mt-4">
+                <a href="{{ url_for('baseball_crossword') }}" class="btn btn-primary">Play Crossword</a>
+                <a href="{{ url_for('crossword_stats') }}" class="btn btn-info">View Your Stats</a>
+                <a href="{{ url_for('index') }}" class="btn btn-secondary">Back to Home</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

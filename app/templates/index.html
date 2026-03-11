@@ -1,23 +1,58 @@
 {% extends "base.html" %}
 
 {% block content %}
-    <div class="container py-4">
-        <h1 class="display-4 text-center text-primary">Welcome to Triviamania!</h1>
+<div class="container py-4">
+    <h1 class="display-4 text-center text-primary mb-4">Baseball Games Hub</h1>
 
-        {% if user %}
-            <div class="alert alert-success animated fadeInUp">
-                <p class="fs-4">Hello, {{ user.username }}! Ready to test your baseball knowledge?</p>
-                <p class="fs-5">Climb the leaderboard by scoring high in each trivia round. Let the games begin! ⚾</p>
-            </div>
+    {% if current_user.is_authenticated %}
+        <div class="alert alert-info mb-4">
+            <h4>Welcome back, {{ current_user.username }}!</h4>
+            {% if user_stats %}
+            <p class="mb-0">Your stats:
+                <strong>{{ user_stats.trivia_rounds }}</strong> trivia rounds,
+                <strong>{{ user_stats.wordle_games }}</strong> wordle games,
+                <strong>{{ user_stats.connections_games }}</strong> connections games,
+                <strong>{{ user_stats.strands_games }}</strong> strands games
+            <strong>{{ user_stats.crossword_games }}</strong> crossword games
+            </p>
+            {% endif %}
+        </div>
 
-            <div class="d-flex justify-content-center">
-                <a href="{{ url_for('trivia') }}" class="btn btn-primary me-2 btn-lg">Start Trivia</a>
-                <a href="{{ url_for('trivia_results') }}" class="btn btn-secondary btn-lg">View Results</a>
+        <div class="row">
+            {% for game in games %}
+            <div class="col-md-6 mb-4">
+                <div class="card h-100 game-card">
+                    <div class="card-body text-center">
+                        <div class="game-icon mb-3">{{ game.icon }}</div>
+                        <h2 class="card-title">{{ game.name }}</h2>
+                        <p class="card-text">{{ game.description }}</p>
+                        <a href="{{ game.url }}" class="btn btn-primary btn-lg">Play Now</a>
+                    </div>
+                </div>
             </div>
-        {% else %}
-            <div class="alert alert-warning animated fadeInUp">
-                <p class="fs-4">Please log in or register to start playing and tracking your scores!</p>
-            </div>
-        {% endif %}
-    </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="alert alert-warning">
+            <p class="fs-4">Please log in or register to start playing!</p>
+        </div>
+    {% endif %}
+</div>
+
+<style>
+.game-icon {
+    font-size: 4rem;
+}
+
+.game-card {
+    transition: transform 0.2s;
+    border: 2px solid #dee2e6;
+}
+
+.game-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    border-color: #0d6efd;
+}
+</style>
 {% endblock %}
